@@ -140,6 +140,17 @@ contract Migration is Ownable {
         _;
     }
 
+    function gatRates() external view returns(uint256 rateSOY, uint256 rateCLOE) {
+        if(block.timestamp < startMigration) return (0,0);
+        uint256 current = currentPeriod;
+        while(periodEnd[current] < block.timestamp) {
+            if(currentPeriod >= 8) return (0,0);   // 8 - last period
+            current++;
+        }
+        rateSOY = soyRatio[current];
+        rateCLOE = cloeRatio[current];
+    }
+
     function tokenReceived(address _from, uint _value, bytes memory data) external returns(bytes4) {
         require(msg.sender == SOY, "Only SOY");
         if (keccak256(data) == keccak256("stakingFixRateMigration")) 
