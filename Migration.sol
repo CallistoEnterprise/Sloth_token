@@ -140,7 +140,7 @@ contract Migration is Ownable {
         _;
     }
 
-    function gatRates() external view returns(uint256 rateSOY, uint256 rateCLOE) {
+    function getRates() external view returns(uint256 rateSOY, uint256 rateCLOE) {
         if(block.timestamp < startMigration) return (0,0);
         uint256 current = currentPeriod;
         while(periodEnd[current] < block.timestamp) {
