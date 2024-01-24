@@ -83,21 +83,25 @@ interface IERC223Recipient {
     function tokenReceived(address _from, uint _value, bytes memory _data) external;
 }
 
-contract Vesting is Ownable {
-    address constant public vestedToken = address(1); // Sloth token
+contract SlothVesting is Ownable {
+    address constant public vestingToken = address(0x7873d09AF3d6965988831C60c7D38DBbd2eAEAB0); // Sloth token
+    uint256 constant public EndReward = 1769904000;     // end time to pay APR 1 February 2026 00:00:00 UTC
 
     struct Allocation {
         uint256 amount;             // amount of token
-        uint256 unlockPercentage;   // percentage of initially unlocked token
-        uint256 startVesting;       // Timestamp (unix time) when starts vesting. First vesting will be at this time
-        uint256 vestingPercentage;  // percentage of tokens will be unlocked every interval (i.e. 10% per 30 days)
-        uint256 vestingInterval;    // interval (in seconds) of vesting (i.e. 30 days)        
+        uint256 startVesting;       // Timestamp (unix time) when starts vesting.
+        uint256 lastClaimed;        // Timestamp when tokens were claimed last time
+        uint256 alreadyClaimed;     // amount that were claimed already
     }
 
+    uint256 public vestingPeriod = 90 days; // vesting period, before first tokens release
+    uint256 public vestingInterval = 30 days;    // interval (in seconds) of vesting (i.e. 30 days)
+    uint256 public vestingPercentage = 5;   // percentage of tokens will be unlocked every interval (i.e. 10% per 30 days)
+    uint256 public vestingAPR = 15;         // APR on locked amount of tokens
     uint256 public totalAllocated;
     uint256 public totalClaimed;
-    mapping(address => Allocation[]) public beneficiaries; // beneficiary => Allocation
-    mapping(address => uint256) public claimedAmount;   // beneficiary => already claimed amount
+    uint256 public totalAPR;
+    mapping(address => Allocation) public beneficiaries; // beneficiary => Allocation
     mapping(address => bool) public depositors; // address of users who has right to deposit and allocate tokens
 
     modifier onlyDepositor() {
@@ -106,14 +110,11 @@ contract Vesting is Ownable {
     }
 
     event SetDepositor(address depositor, bool enable);
-    event Claim(address indexed beneficiary, uint256 amount);
+    event Claim(address indexed beneficiary, uint256 amount, uint256 reward);
     event AddAllocation(
         address indexed to,         // beneficiary of tokens
         uint256 amount,             // amount of token
-        uint256 unlockPercentage,   // percentage of initially unlocked token
-        uint256 startVesting,       // Timestamp (unix time) when starts vesting. First vesting will be at this time
-        uint256 vestingPercentage,  // percentage of tokens will be unlocked every interval (i.e. 10% per 30 days)
-        uint256 vestingInterval     // interval (in seconds) of vesting (i.e. 30 days)        
+        uint256 startVesting       // Timestamp (unix time) when starts vesting.
     );
     event Rescue(address _token, uint256 _amount);
 
@@ -130,30 +131,33 @@ contract Vesting is Ownable {
         emit SetDepositor(depositor, enable);
     }
 
+    function setVestingParameters(uint256 _vestingPercentage, uint256 _vestingInterval, uint256 _vestingPeriod, uint256 _vestingAPR) external onlyOwner {
+        vestingPercentage = _vestingPercentage;
+        vestingInterval = _vestingInterval;
+        vestingPeriod = _vestingPeriod;
+        vestingAPR = _vestingAPR;
+    }
+
     function allocateTokens(
         address to, // beneficiary of tokens
-        uint256 amount, // amount of token
-        uint256 unlockPercentage,   // percentage of first token unlock at vesting start
-        uint256 startVesting,       // Timestamp (unix time) when starts vesting. First vesting will be at this time
-        uint256 vestingPercentage,  // percentage of tokens will be unlocked every interval (i.e. 10% per 30 days)
-        uint256 vestingInterval     // interval (in seconds) of vesting (i.e. 30 days)
+        uint256 amount // amount of token
     )
         external
         onlyDepositor
     {
-        
-        //require(amount <= getUnallocatedAmount(), "Not enough tokens");
-        //require(startVesting > block.timestamp, "startVesting in the past");
-        IERC223(vestedToken).mint(address(this), amount);   // mint vesting token
-
-        beneficiaries[to].push(Allocation(amount, unlockPercentage, startVesting, vestingPercentage, vestingInterval));
-        totalAllocated += amount;
-        // Check ERC223 compatibility of the beneficiary 
-        if (isContract(to)) {
-            IERC223Recipient(to).tokenReceived(address(this), 0, "");
+        IERC223(vestingToken).mint(address(this), amount);   // mint vesting token
+        if (beneficiaries[to].startVesting == 0) {  // new allocation 
+            beneficiaries[to].amount = amount;
+            beneficiaries[to].startVesting = block.timestamp;
+            beneficiaries[to].lastClaimed = block.timestamp;
+            // Check ERC223 compatibility of the beneficiary 
+            safeTransfer(vestingToken, to, 0);
         }
+        else beneficiaries[to].amount += amount;
+        totalAllocated += amount;
 
-        emit AddAllocation(to, amount, unlockPercentage, startVesting, vestingPercentage, vestingInterval);
+
+        emit AddAllocation(to, amount, beneficiaries[to].startVesting);
     }
 
     function claim() external {
@@ -161,67 +165,36 @@ contract Vesting is Ownable {
     }
 
     function claimBehalf(address beneficiary) public {
-        uint256 unlockedAmount = getUnlockedAmount(beneficiary);
+        (uint256 unlockedAmount, uint256 reward) = getUnlockedAmount(beneficiary);
         require(unlockedAmount != 0, "No unlocked tokens");
-        claimedAmount[beneficiary] += unlockedAmount;
+        beneficiaries[beneficiary].alreadyClaimed += unlockedAmount;
+        beneficiaries[beneficiary].lastClaimed = block.timestamp;
         totalClaimed += unlockedAmount;
-        safeTransfer(vestedToken, beneficiary, unlockedAmount);
-        emit Claim(beneficiary, unlockedAmount);
+        totalAPR += reward;
+        IERC223(vestingToken).mint(beneficiary, reward);   // mint reward to beneficiary
+        safeTransfer(vestingToken, beneficiary, unlockedAmount);
+        emit Claim(beneficiary, unlockedAmount, reward);
     }
 
-    function getUnlockedAmount(address beneficiary) public view returns(uint256 unlockedAmount) {
-        for (uint256 i = 0; i < beneficiaries[beneficiary].length; i++) {
-            Allocation storage b = beneficiaries[beneficiary][i];
-            uint256 amount = b.amount;
-            uint256 unlocked;
-            if (b.startVesting <= block.timestamp) {
-                unlocked = amount * b.unlockPercentage / 100;   // first unlock
-                uint256 intervals = (block.timestamp - b.startVesting) / b.vestingInterval; // number of full intervals passed after startVesting
-                unlocked = unlocked + (amount * intervals * b.vestingPercentage / 100);
-            }
-            if (unlocked > amount) unlocked = amount;
-            unlockedAmount += unlocked;
+    function getUnlockedAmount(address beneficiary) public view returns(uint256 unlockedAmount, uint256 reward) {
+        Allocation memory b = beneficiaries[beneficiary];
+        if (b.lastClaimed + vestingInterval <= block.timestamp && b.startVesting + vestingPeriod < block.timestamp) {
+            uint256 rewardEnd = (block.timestamp < EndReward) ? block.timestamp : EndReward;
+            if (b.lastClaimed < rewardEnd)      // APR for locked tokens
+                reward = (b.amount - b.alreadyClaimed) * vestingAPR * (rewardEnd - b.lastClaimed) / (100 * 365 days);
+            if (b.lastClaimed == b.startVesting) b.lastClaimed = b.startVesting + vestingPeriod - vestingInterval;
+            uint256 intervals = (block.timestamp - b.lastClaimed) / vestingInterval; // number of full intervals passed after startVesting
+            unlockedAmount = b.amount * intervals * vestingPercentage / 100;
+            if (unlockedAmount > b.amount) unlockedAmount = b.amount;
+            unlockedAmount = unlockedAmount - b.alreadyClaimed;
         }
-        unlockedAmount = unlockedAmount - claimedAmount[beneficiary];
-    }
-
-    function getUnallocatedAmount() public view returns(uint256 amount) {
-        amount = IERC223(vestedToken).balanceOf(address(this));
-        uint256 unclaimed = totalAllocated - totalClaimed;
-        amount = amount - unclaimed;
     }
 
     function rescueTokens(address _token) onlyOwner external {
-        uint256 amount;
-        if (_token == vestedToken) {
-            amount = getUnallocatedAmount();
-        } else {
-            amount = IERC223(_token).balanceOf(address(this));
-        }
-
+        require(_token != vestingToken, "vestingToken not allowed");
+        uint256 amount = IERC223(_token).balanceOf(address(this));
         safeTransfer(_token, msg.sender, amount);
         emit Rescue(_token, amount);
-    }
-
-    /**
-     * @dev Returns true if `account` is a contract.
-     *
-     * This test is non-exhaustive, and there may be false-negatives: during the
-     * execution of a contract's constructor, its address will be reported as
-     * not containing a contract.
-     *
-     * > It is unsafe to assume that an address for which this function returns
-     * false is an externally-owned account (EOA) and not a contract.
-     */
-    function isContract(address account) internal view returns (bool) {
-        // This method relies in extcodesize, which returns 0 for contracts in
-        // construction, since the code is only stored at the end of the
-        // constructor execution.
-
-        uint256 size;
-        // solhint-disable-next-line no-inline-assembly
-        assembly { size := extcodesize(account) }
-        return size > 0;
     }
     
     function safeTransfer(address token, address to, uint value) internal {

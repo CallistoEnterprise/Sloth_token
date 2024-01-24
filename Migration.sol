@@ -81,7 +81,7 @@ interface IERC223 {
     function mint(address _to, uint256 _amount) external;
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
     function burnFrom(address sender, uint256 amount) external returns (bool);
-    function transfer(address recipient, uint256 amount) external returns (bool);
+    function transfer(address recipient, uint256 amount) external;
     function balanceOf(address account) external view returns (uint256);
 }
 
@@ -99,19 +99,28 @@ interface IStacking {
     function staker(address user) external view returns(Staker memory);
 }
 
+interface ISlothVesting {
+    function allocateTokens(
+        address to, // beneficiary of tokens
+        uint256 amount // amount of token
+    ) external;
+}
+
 contract Migration is Ownable {
     address constant public SOY = address(0xE1A77164e5C6d9E0fc0b23D11e0874De6B328e68); //address(0x9FaE2529863bD691B4A7171bDfCf33C7ebB10a65);
     address constant public CLOE = address(0xd29588B55c9aCfEe50f52600Ae7C6a251cd9b145); //address(0x1eAa43544dAa399b87EEcFcC6Fa579D5ea4A6187);
+    address public slothVesting = address(1);
 
-    uint256 constant public startMigration = 1705786025; //1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
+    uint256 constant public startMigration = 1706140800; //1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
 
     bool public isPause;
     uint256 public totalSlothMinted;
-    uint256[] public periodEnd = [1705881599,1705967999,1706054399,1706054499,1706054599,1706054699,1706054799,1706054899,1706745599]; // for test
-    //uint256[] public periodEnd = [1706831999,1706918399,1707004799,1707091199,1707177599,1707263999,1707868799,1708473599,1714521599]; // last period will ends on 30 April 2024 23:59:59 UTC
-    uint256[] public soyRatio = [100,200,400,800,1000,2000,4000,8000,10000];
-    uint256[] public cloeRatio = [80,160,320,640,800,1600,3200,6400,8000];
+    uint256[] public periodEnd = [1706140800,1706184000,1706227200,1706270400,1706313600,1706356800,1706400000,1706443200]; // for test
+    //uint256[] public periodEnd = [1706831999,1706918399,1707004799,1707091199,1707177599,1707263999,1707868799,1714521599]; // last period will ends on 30 April 2024 23:59:59 UTC
+    uint256[] public soyRatio = [200,400,800,1000,2000,4000,8000,10000];
+    uint256[] public cloeRatio = [30,65,130,170,355,710,1415,1765];
     uint256 public totalCLOEMigrated;
+    uint256 public totalSOYMigrated;
     
     struct StakeRate {
         uint112 migratedAmount;
@@ -133,8 +142,9 @@ contract Migration is Ownable {
     modifier migrationAllowed() {
         require(block.timestamp >= startMigration, "Migration is not started yet");
         require(!isPause, "Migration is paused");
+        uint256 lastPeriod = periodEnd.length-1;
         while(periodEnd[currentPeriod] < block.timestamp) {
-            require(currentPeriod < 8, "Migration finished");   // 8 - last period
+            require(currentPeriod < lastPeriod, "Migration finished");   // not a last period
             currentPeriod++;
         }
         _;
@@ -143,8 +153,9 @@ contract Migration is Ownable {
     function getRates() external view returns(uint256 rateSOY, uint256 rateCLOE) {
         if(block.timestamp < startMigration) return (0,0);
         uint256 current = currentPeriod;
+        uint256 lastPeriod = periodEnd.length-1;
         while(periodEnd[current] < block.timestamp) {
-            if(currentPeriod >= 8) return (0,0);   // 8 - last period
+            if(currentPeriod >= lastPeriod) return (0,0);
             current++;
         }
         rateSOY = soyRatio[current];
@@ -162,7 +173,6 @@ contract Migration is Ownable {
 
     function migrateCLOE(uint256 amount) external {
         IERC223(CLOE).burnFrom(msg.sender, amount);
-        totalCLOEMigrated += amount;
         migrate(msg.sender, amount, false);
     }
 
@@ -170,9 +180,11 @@ contract Migration is Ownable {
         uint256 slothAmount;
         if(isSoy) {
             slothAmount = amount / soyRatio[currentPeriod];
+            totalSOYMigrated += amount;
             emit Migrate(user, amount, slothAmount);
         } else {
             slothAmount = amount / cloeRatio[currentPeriod];
+            totalCLOEMigrated += amount;
             emit MigrateCLOE(user, amount, slothAmount); 
         }
         totalSlothMinted += slothAmount;
@@ -181,7 +193,7 @@ contract Migration is Ownable {
 
     function stakingMigrate() external migrationAllowed {
         require(stakingRateReserved[msg.sender].rate == 0, "Already migrated");
-        uint256 endMigration = periodEnd[8];    // 30 April 2024 23:59:59 UTC
+        uint256 endMigration = periodEnd[periodEnd.length-1];    // 30 April 2024 23:59:59 UTC
         uint256 migratedAmount;
         uint256 reservedAmount;
         for (uint i; i<4; i++) {
@@ -196,20 +208,32 @@ contract Migration is Ownable {
 
     function stakingFixRateMigration(address user, uint256 amount) internal {
             uint256 reservedAmount = stakingRateReserved[user].reservedAmount;
-            require(reservedAmount >= amount, "Exceed reserved amount");
+            if(reservedAmount < amount) {
+                uint256 rest = amount - reservedAmount;
+                amount = reservedAmount;
+                stakingRateReserved[user].reservedAmount = 0;
+                IERC223(SOY).transfer(user, rest);
+            } else {
+                stakingRateReserved[user].reservedAmount = uint112(reservedAmount - amount);
+            }
+            stakingRateReserved[user].migratedAmount = stakingRateReserved[user].migratedAmount + uint112(amount);
             uint256 slothAmount = amount / stakingRateReserved[user].rate;
-            stakingRateReserved[user].reservedAmount = uint112(reservedAmount - amount);
             emit StakingFixRateMigration(user, amount, slothAmount); 
+            totalSOYMigrated += amount;
             totalSlothMinted += slothAmount;
             transferToVesting(user, slothAmount);       
     }
 
     function transferToVesting(address user, uint256 amount) internal {
-        IERC223(0x7873d09AF3d6965988831C60c7D38DBbd2eAEAB0).mint(user, amount); // for testing
+        ISlothVesting(slothVesting).allocateTokens(user, amount);
     }
 
     function setPause(bool pause) external onlyOwner {
         isPause = pause;
+    }
+    
+    function setSlothVesting(address _slothVesting) external onlyOwner {
+        slothVesting = _slothVesting;
     }
 
     function setPeriod(uint256 period, uint256 _periodEnd, uint256 _soyRatio, uint256 _cloeRatio) external onlyOwner {
@@ -223,6 +247,11 @@ contract Migration is Ownable {
             cloeRatio.push(_cloeRatio);
         }
         emit SetPeriod(period, _periodEnd, _soyRatio, _cloeRatio);
+    }
+
+    function burnSoy() external onlyOwner {
+        uint256 value = IERC223(SOY).balanceOf(address(this));
+        IERC223(SOY).transfer(0xdEad000000000000000000000000000000000000, value);
     }
 
     function rescueERC20(address token, address to) external onlyOwner {
