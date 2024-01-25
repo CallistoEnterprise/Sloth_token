@@ -171,19 +171,19 @@ contract SlothVesting is Ownable {
         beneficiaries[beneficiary].lastClaimed = block.timestamp;
         totalClaimed += unlockedAmount;
         totalAPR += reward;
-        IERC223(vestingToken).mint(beneficiary, reward);   // mint reward to beneficiary
+        if (reward != 0) IERC223(vestingToken).mint(beneficiary, reward);   // mint reward to beneficiary
         safeTransfer(vestingToken, beneficiary, unlockedAmount);
         emit Claim(beneficiary, unlockedAmount, reward);
     }
 
     function getUnlockedAmount(address beneficiary) public view returns(uint256 unlockedAmount, uint256 reward) {
         Allocation memory b = beneficiaries[beneficiary];
-        if (b.lastClaimed + vestingInterval <= block.timestamp && b.startVesting + vestingPeriod < block.timestamp) {
+        uint256 startRelease = b.startVesting + vestingPeriod;
+        if (startRelease < block.timestamp) {
             uint256 rewardEnd = (block.timestamp < EndReward) ? block.timestamp : EndReward;
             if (b.lastClaimed < rewardEnd)      // APR for locked tokens
                 reward = (b.amount - b.alreadyClaimed) * vestingAPR * (rewardEnd - b.lastClaimed) / (100 * 365 days);
-            if (b.lastClaimed == b.startVesting) b.lastClaimed = b.startVesting + vestingPeriod - vestingInterval;
-            uint256 intervals = (block.timestamp - b.lastClaimed) / vestingInterval; // number of full intervals passed after startVesting
+            uint256 intervals = (block.timestamp - startRelease) / vestingInterval + 1; // number of full intervals passed after startVesting + 1 initial
             unlockedAmount = b.amount * intervals * vestingPercentage / 100;
             if (unlockedAmount > b.amount) unlockedAmount = b.amount;
             unlockedAmount = unlockedAmount - b.alreadyClaimed;
