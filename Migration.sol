@@ -107,16 +107,15 @@ interface ISlothVesting {
 }
 
 contract Migration is Ownable {
-    address constant public SOY = address(0xE1A77164e5C6d9E0fc0b23D11e0874De6B328e68); //address(0x9FaE2529863bD691B4A7171bDfCf33C7ebB10a65);
-    address constant public CLOE = address(0xd29588B55c9aCfEe50f52600Ae7C6a251cd9b145); //address(0x1eAa43544dAa399b87EEcFcC6Fa579D5ea4A6187);
-    address public slothVesting = address(1);
+    address constant public SOY = address(0x9FaE2529863bD691B4A7171bDfCf33C7ebB10a65);
+    address constant public CLOE = address(0x1eAa43544dAa399b87EEcFcC6Fa579D5ea4A6187);
+    address public slothVesting = address(0xA1D58D570Afebd08Fc13a3983881Ac72a9857954);
 
     uint256 constant public startMigration = 1706140800; //1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
 
     bool public isPause;
     uint256 public totalSlothMinted;
-    uint256[] public periodEnd = [1706140800,1706184000,1706227200,1706270400,1706313600,1706356800,1706400000,1706443200]; // for test
-    //uint256[] public periodEnd = [1706831999,1706918399,1707004799,1707091199,1707177599,1707263999,1707868799,1714521599]; // last period will ends on 30 April 2024 23:59:59 UTC
+    uint256[] public periodEnd = [1706831999,1706918399,1707004799,1707091199,1707177599,1707263999,1707350399,1714521599]; // last period will ends on 30 April 2024 23:59:59 UTC
     uint256[] public soyRatio = [200,400,800,1000,2000,4000,8000,10000];
     uint256[] public cloeRatio = [30,65,130,170,355,710,1415,1765];
     uint256 public totalCLOEMigrated;
@@ -155,7 +154,7 @@ contract Migration is Ownable {
         uint256 current = currentPeriod;
         uint256 lastPeriod = periodEnd.length-1;
         while(periodEnd[current] < block.timestamp) {
-            if(currentPeriod >= lastPeriod) return (0,0);
+            if(current >= lastPeriod) return (0,0);
             current++;
         }
         rateSOY = soyRatio[current];
@@ -191,37 +190,47 @@ contract Migration is Ownable {
         transferToVesting(user, slothAmount);       
     }
 
-    function stakingMigrate() external migrationAllowed {
-        require(stakingRateReserved[msg.sender].rate == 0, "Already migrated");
+    function stakingMigrate() external {
+        stakingMigrateBehalf(msg.sender);
+    }
+
+    function stakingMigrateBatch(address[] calldata users) external {
+        uint len = users.length;
+        for (uint i; i<len; i++)
+            stakingMigrateBehalf(users[i]);
+    }
+
+    function stakingMigrateBehalf(address user) public migrationAllowed { 
+        require(stakingRateReserved[user].rate == 0, "Already migrated");
         uint256 endMigration = periodEnd[periodEnd.length-1];    // 30 April 2024 23:59:59 UTC
         uint256 migratedAmount;
         uint256 reservedAmount;
         for (uint i; i<4; i++) {
-            IStacking.Staker memory s = IStacking(stakingContracts[i]).staker(msg.sender);
+            IStacking.Staker memory s = IStacking(stakingContracts[i]).staker(user);
             if(s.endTime > endMigration || (s.endTime == 0 && i != 0)) migratedAmount += s.amount;  // release time after and of migration and it's not a 30 days staking
             else reservedAmount += s.amount;
         }
-        stakingRateReserved[msg.sender] = StakeRate(uint112(migratedAmount),uint112(reservedAmount),uint32(soyRatio[currentPeriod]));
-        migrate(msg.sender, migratedAmount, true);
-        emit StakingMigrate(msg.sender, soyRatio[currentPeriod], migratedAmount, reservedAmount);
+        stakingRateReserved[user] = StakeRate(uint112(migratedAmount),uint112(reservedAmount),uint32(soyRatio[currentPeriod]));
+        migrate(user, migratedAmount, true);
+        emit StakingMigrate(user, soyRatio[currentPeriod], migratedAmount, reservedAmount);
     }
 
     function stakingFixRateMigration(address user, uint256 amount) internal {
-            uint256 reservedAmount = stakingRateReserved[user].reservedAmount;
-            if(reservedAmount < amount) {
-                uint256 rest = amount - reservedAmount;
-                amount = reservedAmount;
-                stakingRateReserved[user].reservedAmount = 0;
-                IERC223(SOY).transfer(user, rest);
-            } else {
-                stakingRateReserved[user].reservedAmount = uint112(reservedAmount - amount);
-            }
-            stakingRateReserved[user].migratedAmount = stakingRateReserved[user].migratedAmount + uint112(amount);
-            uint256 slothAmount = amount / stakingRateReserved[user].rate;
-            emit StakingFixRateMigration(user, amount, slothAmount); 
-            totalSOYMigrated += amount;
-            totalSlothMinted += slothAmount;
-            transferToVesting(user, slothAmount);       
+        uint256 reservedAmount = stakingRateReserved[user].reservedAmount;
+        if(reservedAmount < amount) {
+            uint256 rest = amount - reservedAmount;
+            amount = reservedAmount;
+            stakingRateReserved[user].reservedAmount = 0;
+            IERC223(SOY).transfer(user, rest);
+        } else {
+            stakingRateReserved[user].reservedAmount = uint112(reservedAmount - amount);
+        }
+        stakingRateReserved[user].migratedAmount = stakingRateReserved[user].migratedAmount + uint112(amount);
+        uint256 slothAmount = amount / stakingRateReserved[user].rate;
+        emit StakingFixRateMigration(user, amount, slothAmount); 
+        totalSOYMigrated += amount;
+        totalSlothMinted += slothAmount;
+        transferToVesting(user, slothAmount);       
     }
 
     function transferToVesting(address user, uint256 amount) internal {

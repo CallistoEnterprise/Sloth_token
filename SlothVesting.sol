@@ -84,7 +84,7 @@ interface IERC223Recipient {
 }
 
 contract SlothVesting is Ownable {
-    address constant public vestingToken = address(0x7873d09AF3d6965988831C60c7D38DBbd2eAEAB0); // Sloth token
+    address constant public vestingToken = address(0x12a3d7A3247Da63eB84Fa916278825920db86eC1); // Sloth token
     uint256 constant public EndReward = 1769904000;     // end time to pay APR 1 February 2026 00:00:00 UTC
 
     struct Allocation {
@@ -155,8 +155,6 @@ contract SlothVesting is Ownable {
         }
         else beneficiaries[to].amount += amount;
         totalAllocated += amount;
-
-
         emit AddAllocation(to, amount, beneficiaries[to].startVesting);
     }
 
@@ -187,6 +185,7 @@ contract SlothVesting is Ownable {
             unlockedAmount = b.amount * intervals * vestingPercentage / 100;
             if (unlockedAmount > b.amount) unlockedAmount = b.amount;
             unlockedAmount = unlockedAmount - b.alreadyClaimed;
+            if (unlockedAmount == 0) reward = 0;    // allow reward only together with available portion
         }
     }
 

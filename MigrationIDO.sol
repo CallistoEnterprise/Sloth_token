@@ -93,10 +93,10 @@ interface ISlothVesting {
 }
 
 contract MigrationIDO is Ownable {
-    address constant public SOY = address(0xE1A77164e5C6d9E0fc0b23D11e0874De6B328e68); //address(0x9FaE2529863bD691B4A7171bDfCf33C7ebB10a65);
-    address public slothVesting = address(1);
+    address constant public SOY = address(0x9FaE2529863bD691B4A7171bDfCf33C7ebB10a65);
+    address public slothVesting = address(0xA1D58D570Afebd08Fc13a3983881Ac72a9857954);
 
-    uint256 constant public startMigration = 1705786025; //1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
+    uint256 constant public startMigration = 1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
     uint256 public endMigration = 1714521599; // 30 April 2024 23:59:59 UTC
     uint256 public soyRatio = 100;
     bool public isPause;
@@ -155,6 +155,12 @@ contract MigrationIDO is Ownable {
         totalSoyReserved += total;
     }
 
+    function replaceAddress(address oldAddress, address newAddress) external onlyOwner {
+        uint256 value = reserved[oldAddress];
+        reserved[oldAddress] = 0;
+        reserved[newAddress] = value;
+    }
+    
     function setPause(bool pause) external onlyOwner {
         isPause = pause;
     }
