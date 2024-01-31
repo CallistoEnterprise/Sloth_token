@@ -109,9 +109,9 @@ interface ISlothVesting {
 contract Migration is Ownable {
     address constant public SOY = address(0x9FaE2529863bD691B4A7171bDfCf33C7ebB10a65);
     address constant public CLOE = address(0x1eAa43544dAa399b87EEcFcC6Fa579D5ea4A6187);
-    address public slothVesting = address(0xA1D58D570Afebd08Fc13a3983881Ac72a9857954);
+    address public slothVesting = address(0x98194aaA67638498547Df929DF4926C7D0DCD135);
 
-    uint256 constant public startMigration = 1706140800; //1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
+    uint256 constant public startMigration = 1706745600;   // timestamp when migration start 1 February 2024 00:00:00 UTC
 
     bool public isPause;
     uint256 public totalSlothMinted;

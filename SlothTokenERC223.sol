@@ -671,7 +671,7 @@ contract Ownable is Context {
 
 
 // SlothToken with Governance.
-contract SlothToken is ERC223("Sloth Finance", "SLOFI"), Ownable {
+contract SlothToken is ERC223("Sloth.Finance", "SLOFI"), Ownable {
     function rescueERC20(address token, address to) external onlyOwner {
         uint256 value = IERC223(token).balanceOf(address(this));
         IERC223(token).transfer(to, value);

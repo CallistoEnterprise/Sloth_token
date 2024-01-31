@@ -84,7 +84,7 @@ interface IERC223Recipient {
 }
 
 contract SlothVesting is Ownable {
-    address constant public vestingToken = address(0x12a3d7A3247Da63eB84Fa916278825920db86eC1); // Sloth token
+    address constant public vestingToken = address(0x8c5Bba04B2f5CCCe0f8F951D2DE9616BE190070D); // Sloth token
     uint256 constant public EndReward = 1769904000;     // end time to pay APR 1 February 2026 00:00:00 UTC
 
     struct Allocation {
