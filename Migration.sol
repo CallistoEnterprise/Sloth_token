@@ -207,7 +207,7 @@ contract Migration is Ownable {
         uint256 reservedAmount;
         for (uint i; i<4; i++) {
             IStacking.Staker memory s = IStacking(stakingContracts[i]).staker(user);
-            if(s.endTime > endMigration || (s.endTime == 0 && i != 0)) migratedAmount += s.amount;  // release time after and of migration and it's not a 30 days staking
+            if(s.endTime > endMigration || (s.endTime == 0 && i != 0)) migratedAmount += s.amount;  // release time after end of migration and it's not a 30 days staking
             else reservedAmount += s.amount;
         }
         stakingRateReserved[user] = StakeRate(uint112(migratedAmount),uint112(reservedAmount),uint32(soyRatio[currentPeriod]));
