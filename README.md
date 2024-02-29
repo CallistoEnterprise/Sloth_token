@@ -1,3 +1,8 @@
+# Callisto Evolution token
+- CE token [0x3986E815F87feA74910F7aDeAcD1cE7f172E1df0](https://explorer.callisto.network/address/0x3986E815F87feA74910F7aDeAcD1cE7f172E1df0/contracts)
+- MigrationCE [0xAA4DfDdC6f3C0a184B66ECBd7F7fec5106FF921B](https://explorer.callisto.network/address/0xAA4DfDdC6f3C0a184B66ECBd7F7fec5106FF921B/contracts)
+
+
 # Sloth_token
 - SLOFI token [0x8c5Bba04B2f5CCCe0f8F951D2DE9616BE190070D](https://explorer.callisto.network/address/0x8c5Bba04B2f5CCCe0f8F951D2DE9616BE190070D/contracts)
 - SlothVesting (minter in SLOFI token) [0x98194aaA67638498547Df929DF4926C7D0DCD135](https://explorer.callisto.network/address/0x98194aaA67638498547Df929DF4926C7D0DCD135/contracts)
