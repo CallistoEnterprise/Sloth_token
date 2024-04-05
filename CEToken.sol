@@ -216,7 +216,7 @@ contract ERC223 is IERC223, Ownable {
     string private _symbol;
     string private _name;
     address public minter;
-    uint256 public migrationRate = 1;  // 1 CLO = 1 CE. CE amount = CLO amount / migrationRate. 0 - migration stopped
+    //uint256 public migrationRate = 1;  // 1 CLO = 1 CE. CE amount = CLO amount / migrationRate. 0 - migration stopped
     event SetMinter(address previousMinter, address newMinter);
     event Rescued(address to, bytes data);
 
@@ -243,11 +243,12 @@ contract ERC223 is IERC223, Ownable {
         emit SetMinter(minter, newMinter);
         minter = newMinter;
     }
-
+/*
     // allow owner to change migrationRate, 0 - migration stopped. CE amount = CLO amount / migrationRate
     function setMigrationRate(uint256 newRate) external onlyOwner {
         migrationRate = newRate;
     }
+
 
     // migrate to CE
     receive() external payable {
@@ -255,7 +256,7 @@ contract ERC223 is IERC223, Ownable {
         if (msg.value != 0)
             _mint(msg.sender, msg.value/migrationRate);
     }
-
+*/
     /**
      * @dev Mint tokens to user in amount of his deposit. Used by bridge to mint wrapped tokens
      * @param user - address of user's wallet

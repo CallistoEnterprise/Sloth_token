@@ -85,44 +85,132 @@ interface IERC223 {
     function balanceOf(address account) external view returns (uint256);
 }
 
+interface ICS2 {
+    struct Staker
+    {
+        uint amount;
+        uint time;              // Staking start time or last claim rewards
+        uint multiplier;        // Rewards multiplier = 0.40 + (0.05 * rounds). [0.45..1] (max rounds 12)
+        uint end_time;          // Time when staking ends and user may withdraw. After this time user will not receive rewards.
+    }
+    function staker(address user) external view returns(Staker memory);
+}
 
 
 contract MigrationCE is Ownable {
+    ICS2 constant public CS2 = ICS2(0x08A7c8be47773546DC5E173d67B0c38AfFfa4b84);
     address constant public CLOE = address(0x1eAa43544dAa399b87EEcFcC6Fa579D5ea4A6187);
-    address constant public CE = address(0x3986E815F87feA74910F7aDeAcD1cE7f172E1df0);
+    uint256[] public periodEnd = [1712016000,1714521600,1719792000,1725235200]; // last period will ends on 1 September 2024 23:59:59 UTC
+    address[] public tokenCE = [0x3986E815F87feA74910F7aDeAcD1cE7f172E1df0,0xB376e0eE3f4430ddE2cd6705eeCB48b2d5eb5C3C,0x54BdF1fB03f1ff159FE175EAe6cDCE25a2192F2E,0x4928688C4c83bC9a0D3c4a20A4BC13c54Af55C94]; // different tokens for each phase 
+    uint256 public currentPeriod;
 
-    uint256 public cloeRate = 30000;     // rate in percentage with 2 decimals. CE amount = CLOE amount * cloeRate / 10000
+    uint256 public cloeRate = 20;     // CE amount = CLOE amount * cloeRate
+    uint256 public cloRate = 1;     // CE amount = CLO amount * cloRate
+
     bool public isPause;
     uint256 public totalCEMinted;
     uint256 public totalCLOEMigrated;
+    uint256 public totalCLOMigrated;
 
-    event Migrate(address user, uint256 CLOEAmount, uint256 CEAmount);
+    struct ReserveCS {
+        uint256 amount;
+        uint256 time;
+        address tokenCE;
+    }
+
+    mapping(address => ReserveCS) public reserves;
+
+    event MigrateCLO(address user, uint256 CLOAmount, uint256 CEAmount, address ceAddress);
+    event Migrate(address user, uint256 CLOEAmount, uint256 CEAmount, address ceAddress);
 
     modifier migrationAllowed() {
         require(!isPause, "Migration is paused");
+        uint256 lastPeriod = periodEnd.length-1;
+        while(periodEnd[currentPeriod] < block.timestamp) {
+            require(currentPeriod < lastPeriod, "Migration finished");   // not a last period
+            currentPeriod++;
+        }
         _;
     }
 
-    function tokenReceived(address, uint, bytes memory) external pure returns(bytes4) {
-        revert("not allowed");
+    // migrate CLO to CE
+    receive() external payable {
+        require(cloRate != 0, "migration stopped");
+        require(msg.value != 0, "0 value");
+        address user = msg.sender;
+        uint256 amount = msg.value;
+        /*
+        if (reserves[user].amount !=0 && reserves[user].time <= block.timestamp) {
+            // migrate reserved amount of clo
+            uint256 reserved = reserves[user].amount;
+            if (amount >= reserved) {
+                amount = amount - reserved;
+                reserves[user].amount = 0;
+            } else {
+                reserves[user].amount = reserved - amount;
+                reserved = amount;
+                amount = 0;
+            }
+            uint256 ceAmount = reserved * cloRate;
+            totalCLOMigrated += reserved;
+            totalCEMinted += ceAmount;
+            address ceAddress = reserves[user].tokenCE;
+            IERC223(ceAddress).mint(user, ceAmount);
+            emit MigrateCLO(user, reserved, ceAmount, ceAddress); 
+        }
+        */
+        if (amount != 0) migrate(user, amount, false);
     }
 
-    function migrateCLOE(address user, uint256 amount) external migrationAllowed {
-        IERC223(CLOE).transferFrom(msg.sender, address(this), amount);
-        uint256 ceAmount = amount * cloeRate / 10000;
-        totalCLOEMigrated += amount;
-        totalCEMinted += ceAmount;
-        IERC223(CE).mint(msg.sender, ceAmount);  
-        emit Migrate(user, amount, ceAmount); 
+    function migrateCLOE(address user, uint256 amount) external {
+        require(amount != 0, "0 value");
+        IERC223(CLOE).burnFrom(msg.sender, amount);
+        migrate(user, amount, true);
     }
+
+    function migrate(address user, uint256 amount, bool isCLOE) internal migrationAllowed {
+        uint256 ceAmount;
+        address ceAddress = tokenCE[currentPeriod];
+        if (isCLOE) {
+            ceAmount = amount * cloeRate;
+            totalCLOEMigrated += amount;
+            emit Migrate(user, amount, ceAmount, ceAddress); 
+        } else {
+            ceAmount = amount * cloRate;
+            totalCLOMigrated += amount;
+            emit MigrateCLO(user, amount, ceAmount, ceAddress); 
+        }
+        totalCEMinted += ceAmount;
+        IERC223(ceAddress).mint(user, ceAmount); 
+    }
+/*
+    function stakingMigrate(address user) public migrationAllowed onlyOwner { 
+        require(reserves[user].time == 0, "Already reserved");
+        ICS2.Staker memory s = CS2.staker(user);
+        require(s.amount != 0, "No staking");
+        reserves[user].amount = s.amount;
+        reserves[user].time = s.end_time;
+        reserves[user].tokenCE = tokenCE[currentPeriod];
+    }
+
+    function stakingRateReserved(address user) public view returns (uint256 reservedAmount) {
+        return(reserves[user].amount);
+    }
+*/
 
     function setPause(bool pause) external onlyOwner {
         isPause = pause;
     }
     
-    // rate in percentage with 2 decimals. CE amount = CLOE amount * cloeRate / 10000
-    function setCloeRate(uint256 _cloeRate) external onlyOwner {
+    function setCloeCE(uint256 _cloeMigrated, uint256 _cloMigrated, uint256 _ceMinted) external onlyOwner {
+        totalCLOEMigrated += _cloeMigrated;
+        totalCLOMigrated += _cloMigrated;
+        totalCEMinted += _ceMinted;
+    }
+
+    function setRates(uint256 _cloeRate, uint256 _cloRate) external onlyOwner {
         cloeRate = _cloeRate;
+        cloRate = _cloRate;
     }
 
     // Rescue tokens

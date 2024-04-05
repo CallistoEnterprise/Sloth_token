@@ -1,6 +1,11 @@
 # Callisto Evolution token
 - CE token [0x3986E815F87feA74910F7aDeAcD1cE7f172E1df0](https://explorer.callisto.network/address/0x3986E815F87feA74910F7aDeAcD1cE7f172E1df0/contracts)
-- MigrationCE [0xAA4DfDdC6f3C0a184B66ECBd7F7fec5106FF921B](https://explorer.callisto.network/address/0xAA4DfDdC6f3C0a184B66ECBd7F7fec5106FF921B/contracts)
+- CE2 token [0xB376e0eE3f4430ddE2cd6705eeCB48b2d5eb5C3C](https://explorer.callisto.network/address/0xB376e0eE3f4430ddE2cd6705eeCB48b2d5eb5C3C/contracts)
+- CE3 token [0x54BdF1fB03f1ff159FE175EAe6cDCE25a2192F2E](https://explorer.callisto.network/address/0x54BdF1fB03f1ff159FE175EAe6cDCE25a2192F2E/contracts)
+- CE4 token [0x4928688C4c83bC9a0D3c4a20A4BC13c54Af55C94](https://explorer.callisto.network/address/0x4928688C4c83bC9a0D3c4a20A4BC13c54Af55C94/contracts)
+- MigrationCE [0xAe50177B650e18fdEA7A871A8205Acb7e629fD04](https://explorer.callisto.network/address/0xAe50177B650e18fdEA7A871A8205Acb7e629fD04/contracts)
+
+- MigrationCE (old)[0xAA4DfDdC6f3C0a184B66ECBd7F7fec5106FF921B](https://explorer.callisto.network/address/0xAA4DfDdC6f3C0a184B66ECBd7F7fec5106FF921B/contracts)
 
 
 # Sloth_token
