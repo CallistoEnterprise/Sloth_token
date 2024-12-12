@@ -1,7 +1,7 @@
 # Fushuma
 ## Callisto chain
-- Token [https://explorer.callistodao.org/address/0xa062EBbdB7cC337c1379271b2fD123DFEdf7CA7E](0xa062EBbdB7cC337c1379271b2fD123DFEdf7CA7E)
-- Multisig [https://explorer.callistodao.org/address/0x688dcD65B315a1DA3F0A81B2c7d29f4aAcd2E9aB](0x688dcD65B315a1DA3F0A81B2c7d29f4aAcd2E9aB) owners: 
+- Token [0xa062EBbdB7cC337c1379271b2fD123DFEdf7CA7E](https://explorer.callistodao.org/address/0xa062EBbdB7cC337c1379271b2fD123DFEdf7CA7E)
+- Multisig [0x688dcD65B315a1DA3F0A81B2c7d29f4aAcd2E9aB](https://explorer.callistodao.org/address/0x688dcD65B315a1DA3F0A81B2c7d29f4aAcd2E9aB) owners: 
   1. jakarry: 0x993D1941ef5207EE530283E55ACBEb9f4921232E
   2. zvse3 0x9e6993DD8CA5C90777CDCf888eA7f54c641a2A4E
   3. Tonton 0x45FAc82b24511927a201C2cdFC506625dECe3d22
