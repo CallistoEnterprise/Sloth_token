@@ -1,4 +1,7 @@
 # Fushuma
+## Fushuma chain
+- WFUMA [0xd3801bDd73f11Ee2EAA339F13620B11e6d3f95B2](https://fumascan.com/address/0xd3801bDd73f11Ee2EAA339F13620B11e6d3f95B2?tab=contract)
+
 ## Callisto chain
 - Token [0xa062EBbdB7cC337c1379271b2fD123DFEdf7CA7E](https://explorer.callistodao.org/address/0xa062EBbdB7cC337c1379271b2fD123DFEdf7CA7E)
 - Multisig [0x688dcD65B315a1DA3F0A81B2c7d29f4aAcd2E9aB](https://explorer.callistodao.org/address/0x688dcD65B315a1DA3F0A81B2c7d29f4aAcd2E9aB) owners: 
